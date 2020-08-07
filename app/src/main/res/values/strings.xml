@@ -1,4 +1,5 @@
 <resources>
     <string name="app_name">Hhwld</string>
     <string name="site_domain">https://codepen.io/rcass/pen/MmYwEp</string>
+    <string name="appslyer_key">xxxx</string>
 </resources>
