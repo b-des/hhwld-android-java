@@ -6,6 +6,7 @@ import android.app.Activity;
 import android.app.ProgressDialog;
 import android.content.Intent;
 import android.graphics.Bitmap;
+import android.net.NetworkInfo;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
@@ -26,8 +27,12 @@ import android.widget.Toast;
 
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.fragment.app.DialogFragment;
+import androidx.fragment.app.FragmentTransaction;
 
+import com.github.pwittchen.reactivenetwork.library.rx2.Connectivity;
 import com.github.pwittchen.reactivenetwork.library.rx2.ReactiveNetwork;
+import com.hh.wld.ui.FullScreenDialog;
 import com.hh.wld.utils.ChromeClient;
 import com.hh.wld.utils.Constants;
 import com.hh.wld.utils.Utils;
@@ -84,22 +89,39 @@ public class WebViewActivity extends AppCompatActivity {
         } else if (Build.VERSION.SDK_INT >= 11 && Build.VERSION.SDK_INT < 19) {
             webView.setLayerType(View.LAYER_TYPE_SOFTWARE, null);
         }
-        webView.loadUrl(getString(R.string.site_domain)); //change with your website
+        this.loadUrl(getString(R.string.site_domain));
 
         Timber.d("Appslyer in activity: %s", PowerPreference.getDefaultFile().getString(Constants.APPS_FLYER_ID));
 
-      this.registerNetworkObserver();
+
+        this.registerNetworkObserver();
     }
 
-    private void registerNetworkObserver(){
-        Observable observable = ReactiveNetwork
-                .observeNetworkConnectivity(this)
-                .subscribeOn(Schedulers.io())
-                .observeOn(AndroidSchedulers.mainThread());
+    private void registerNetworkObserver() {
+        FullScreenDialog dialog = new FullScreenDialog();
+        FragmentTransaction ft = getSupportFragmentManager().beginTransaction();
+        disposable.add(
+                ReactiveNetwork
+                        .observeNetworkConnectivity(this)
+                        .subscribeOn(Schedulers.io())
+                        .observeOn(AndroidSchedulers.mainThread())
+                        .subscribe(connectivity -> {
+                            Timber.d("NETWORK: %s", connectivity.toString());
+                            if (connectivity.state() == NetworkInfo.State.CONNECTED) {
+                                try {
+                                    dialog.dismiss();
+                                } catch (Exception e) {
+                                }
 
-        disposable.add(observable.subscribe(connectivity -> {
-            Timber.d("NETWORK: %s", connectivity.toString());
-        }));
+                            } else {
+                                dialog.show(ft, FullScreenDialog.TAG);
+                            }
+                        })
+        );
+    }
+
+    private void loadUrl(String url){
+        webView.loadUrl(url);
     }
 
 
@@ -256,8 +278,7 @@ public class WebViewActivity extends AppCompatActivity {
                         result = data == null ? mCapturedImageURI : data.getData();
                     }
                 } catch (Exception e) {
-                    Toast.makeText(getApplicationContext(), "activity :" + e,
-                            Toast.LENGTH_LONG).show();
+                    Toast.makeText(getApplicationContext(), "activity :" + e, Toast.LENGTH_LONG).show();
                 }
                 mUploadMessage.onReceiveValue(result);
                 mUploadMessage = null;
