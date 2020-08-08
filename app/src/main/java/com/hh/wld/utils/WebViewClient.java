@@ -8,32 +8,35 @@ import android.net.Uri;
 import android.webkit.WebView;
 
 import com.hh.wld.WebViewActivity;
+import com.preference.PowerPreference;
+import com.preference.Preference;
 
 import timber.log.Timber;
 
 public class WebViewClient extends android.webkit.WebViewClient {
     private Context context;
     ProgressDialog progressDialog;
-
+    Preference preference;
     public WebViewClient(Context context) {
         this.context = context;
+        preference = PowerPreference.getDefaultFile();
     }
 
     public boolean shouldOverrideUrlLoading(WebView view, String url) {
         Timber.d("shouldOverrideUrlLoading: %s", url);
         // If url contains mailto link then open Mail Intent
+
+        preference.setString(Constants.LAST_SAVED_URL, url);
         if (url.contains("mailto:")) {
             // Could be cleverer and use a regex
-            //Open links in new browser
-            view.getContext().startActivity(
-                    new Intent(Intent.ACTION_VIEW, Uri.parse(url)));
-            // Here we can open new activity
+            view.getContext().startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(url)));
             return true;
         }else {
             // Stay within this webview and load url
             view.loadUrl(url);
             return true;
         }
+
     }
     //Show loader on url load
     public void onPageStarted(WebView view, String url, Bitmap favicon) {
@@ -56,5 +59,9 @@ public class WebViewClient extends android.webkit.WebViewClient {
         } catch (Exception exception) {
             exception.printStackTrace();
         }
+    }
+
+    private void check(){
+
     }
 }

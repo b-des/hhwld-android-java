@@ -1,75 +1,60 @@
 package com.hh.wld;
 
-import android.annotation.SuppressLint;
-import android.annotation.TargetApi;
 import android.app.Activity;
-import android.app.ProgressDialog;
 import android.content.Intent;
-import android.graphics.Bitmap;
 import android.net.NetworkInfo;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
-import android.os.Environment;
-import android.os.Parcelable;
-import android.provider.MediaStore;
-import android.util.Log;
 import android.view.KeyEvent;
-import android.view.MenuItem;
 import android.view.View;
-import android.webkit.ConsoleMessage;
 import android.webkit.ValueCallback;
 import android.webkit.WebChromeClient;
-import android.webkit.WebResourceRequest;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
-import android.widget.Toast;
 
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
-import androidx.fragment.app.DialogFragment;
 import androidx.fragment.app.FragmentTransaction;
 
-import com.github.pwittchen.reactivenetwork.library.rx2.Connectivity;
 import com.github.pwittchen.reactivenetwork.library.rx2.ReactiveNetwork;
+import com.hh.wld.interfaces.ChromeClientCallback;
 import com.hh.wld.ui.FullScreenDialog;
 import com.hh.wld.utils.ChromeClient;
 import com.hh.wld.utils.Constants;
-import com.hh.wld.utils.Utils;
+import com.hh.wld.utils.Permissons;
 import com.hh.wld.utils.WebViewClient;
-
 import com.preference.PowerPreference;
+import com.somesh.permissionmadeeasy.enums.Permission;
+import com.somesh.permissionmadeeasy.helper.PermissionHelper;
+import com.somesh.permissionmadeeasy.intefaces.PermissionListener;
 
-import java.io.File;
-import java.io.IOException;
-import java.text.SimpleDateFormat;
-import java.util.Date;
-import java.util.Locale;
+import org.jetbrains.annotations.NotNull;
+
+import java.util.ArrayList;
 
 import butterknife.BindView;
 import butterknife.ButterKnife;
-import im.delight.android.webview.AdvancedWebView;
-import io.reactivex.Observable;
 import io.reactivex.android.schedulers.AndroidSchedulers;
 import io.reactivex.disposables.CompositeDisposable;
-import io.reactivex.disposables.Disposable;
-import io.reactivex.disposables.Disposables;
-import io.reactivex.observers.DisposableObserver;
 import io.reactivex.schedulers.Schedulers;
 import timber.log.Timber;
 
 
-public class WebViewActivity extends AppCompatActivity {
+public class WebViewActivity extends AppCompatActivity implements ChromeClientCallback, PermissionListener  {
 
     private static final String TAG = WebViewActivity.class.getSimpleName();
-    @BindView(R.id.webview)
-    WebView webView;
+    @BindView(R.id.webview) WebView webView;
+
     private WebSettings webSettings;
-    private ValueCallback<Uri> mUploadMessage;
-    private Uri mCapturedImageURI = null;
-    private ValueCallback<Uri[]> mFilePathCallback;
-    private String mCameraPhotoPath;
+
+    private ValueCallback<Uri[]> filePath;
+    private WebChromeClient.FileChooserParams fileChooserParams;
+    private ChromeClient chromeClient;
+
     private CompositeDisposable disposable;
+    private String appsflyerID = null;
+    PermissionHelper permissionHelper;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -77,24 +62,20 @@ public class WebViewActivity extends AppCompatActivity {
         setContentView(R.layout.activity_main);
         ButterKnife.bind(this);
         disposable = new CompositeDisposable();
-        webSettings = webView.getSettings();
-        webSettings.setJavaScriptEnabled(true);
-        webSettings.setLoadWithOverviewMode(true);
-        webSettings.setAllowFileAccess(true);
 
-        webView.setWebViewClient(new WebViewClient(this));
-        webView.setWebChromeClient(new com.hh.wld.utils.ChromeClient(this));
-        if (Build.VERSION.SDK_INT >= 19) {
-            webView.setLayerType(View.LAYER_TYPE_HARDWARE, null);
-        } else if (Build.VERSION.SDK_INT >= 11 && Build.VERSION.SDK_INT < 19) {
-            webView.setLayerType(View.LAYER_TYPE_SOFTWARE, null);
-        }
+        appsflyerID = PowerPreference.getDefaultFile().getString(Constants.APPS_FLYER_ID);
+
+        this.initWebView();
         this.loadUrl(getString(R.string.site_domain));
-
-        Timber.d("Appslyer in activity: %s", PowerPreference.getDefaultFile().getString(Constants.APPS_FLYER_ID));
-
-
         this.registerNetworkObserver();
+
+        permissionHelper = PermissionHelper.Builder()
+                .with(this)
+                .requestCode(Constants.REQUEST_CODE_CAMERA_AND_STORAGE)
+                .setPermissionResultCallback(this)
+                .askFor(Permission.CAMERA, Permission.STORAGE)
+                .rationalMessage("Permissions are required for app to work properly")
+                .build();
     }
 
     private void registerNetworkObserver() {
@@ -120,12 +101,33 @@ public class WebViewActivity extends AppCompatActivity {
         );
     }
 
+    private void initWebView(){
+         chromeClient = new ChromeClient(this, this);
+        webSettings = webView.getSettings();
+        webSettings.setJavaScriptEnabled(true);
+        webSettings.setLoadWithOverviewMode(true);
+        webSettings.setAllowFileAccess(true);
+
+        webView.setWebViewClient(new WebViewClient(this));
+        webView.setWebChromeClient(chromeClient);
+        if (Build.VERSION.SDK_INT >= 19) {
+            webView.setLayerType(View.LAYER_TYPE_HARDWARE, null);
+        } else if (Build.VERSION.SDK_INT >= 11 && Build.VERSION.SDK_INT < 19) {
+            webView.setLayerType(View.LAYER_TYPE_SOFTWARE, null);
+        }
+    }
+
     private void loadUrl(String url){
-        webView.loadUrl(url);
+        Uri builtUri = Uri.parse(url)
+                .buildUpon()
+                .appendQueryParameter("did", appsflyerID)
+                .build();
+        Timber.d("URL IS: %s", builtUri.toString());
+        webView.loadUrl(builtUri.toString());
     }
 
 
-    public class ChromeClient extends WebChromeClient {
+    /*public class ChromeClient extends WebChromeClient {
         // For Android 5.0
         public boolean onShowFileChooser(WebView view, ValueCallback<Uri[]> filePath, WebChromeClient.FileChooserParams fileChooserParams) {
             Timber.d("onShowFileChooser");
@@ -176,23 +178,17 @@ public class WebViewActivity extends AppCompatActivity {
             mUploadMessage = uploadMsg;
             // Create AndroidExampleFolder at sdcard
             // Create AndroidExampleFolder at sdcard
-            File imageStorageDir = new File(
-                    Environment.getExternalStoragePublicDirectory(
-                            Environment.DIRECTORY_PICTURES)
-                    , "AndroidExampleFolder");
+            File imageStorageDir = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES), "AndroidExampleFolder");
             if (!imageStorageDir.exists()) {
                 // Create AndroidExampleFolder at sdcard
                 imageStorageDir.mkdirs();
             }
             // Create camera captured image file path and name
             File file = new File(
-                    imageStorageDir + File.separator + "IMG_"
-                            + String.valueOf(System.currentTimeMillis())
-                            + ".jpg");
+                    imageStorageDir + File.separator + "IMG_" + System.currentTimeMillis() + ".jpg");
             mCapturedImageURI = Uri.fromFile(file);
             // Camera capture image intent
-            final Intent captureIntent = new Intent(
-                    android.provider.MediaStore.ACTION_IMAGE_CAPTURE);
+            final Intent captureIntent = new Intent(android.provider.MediaStore.ACTION_IMAGE_CAPTURE);
             captureIntent.putExtra(MediaStore.EXTRA_OUTPUT, mCapturedImageURI);
             Intent i = new Intent(Intent.ACTION_GET_CONTENT);
             i.addCategory(Intent.CATEGORY_OPENABLE);
@@ -200,8 +196,7 @@ public class WebViewActivity extends AppCompatActivity {
             // Create file chooser intent
             Intent chooserIntent = Intent.createChooser(i, "Image Chooser");
             // Set camera intent to file chooser
-            chooserIntent.putExtra(Intent.EXTRA_INITIAL_INTENTS
-                    , new Parcelable[]{captureIntent});
+            chooserIntent.putExtra(Intent.EXTRA_INITIAL_INTENTS, new Parcelable[]{captureIntent});
             // On select image call onActivityResult method of activity
             startActivityForResult(chooserIntent, Constants.FILECHOOSER_RESULTCODE);
         }
@@ -217,16 +212,13 @@ public class WebViewActivity extends AppCompatActivity {
                                     String capture) {
             openFileChooser(uploadMsg, acceptType);
         }
-    }
+    }*/
 
     public boolean onKeyDown(int keyCode, KeyEvent event) {
-        // Check if the key event was the Back button and if there's history
         if ((keyCode == KeyEvent.KEYCODE_BACK) && webView.canGoBack()) {
             webView.goBack();
             return true;
         }
-        // If it wasn't the Back key or there's no web page history, bubble up to the default
-        // system behavior (probably exit the activity)
         return super.onKeyDown(keyCode, event);
     }
 
@@ -238,8 +230,8 @@ public class WebViewActivity extends AppCompatActivity {
 
     @Override
     public void onActivityResult(int requestCode, int resultCode, Intent data) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-            if (requestCode != Constants.INPUT_FILE_REQUEST_CODE || mFilePathCallback == null) {
+        //if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+            if (requestCode != Constants.INPUT_FILE_REQUEST_CODE || ChromeClient.mFilePathCallback == null) {
                 super.onActivityResult(requestCode, resultCode, data);
                 return;
             }
@@ -248,8 +240,8 @@ public class WebViewActivity extends AppCompatActivity {
             if (resultCode == Activity.RESULT_OK) {
                 if (data == null) {
                     // If there is not data, then we may have taken a photo
-                    if (mCameraPhotoPath != null) {
-                        results = new Uri[]{Uri.parse(mCameraPhotoPath)};
+                    if (ChromeClient.mCameraPhotoPath != null) {
+                        results = new Uri[]{Uri.parse(ChromeClient.mCameraPhotoPath)};
                     }
                 } else {
                     String dataString = data.getDataString();
@@ -258,32 +250,40 @@ public class WebViewActivity extends AppCompatActivity {
                     }
                 }
             }
-            mFilePathCallback.onReceiveValue(results);
-            mFilePathCallback = null;
-        } else if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.KITKAT) {
-            if (requestCode != Constants.FILECHOOSER_RESULTCODE || mUploadMessage == null) {
-                super.onActivityResult(requestCode, resultCode, data);
-                return;
-            }
-            if (requestCode == Constants.FILECHOOSER_RESULTCODE) {
-                if (null == this.mUploadMessage) {
-                    return;
-                }
-                Uri result = null;
-                try {
-                    if (resultCode != RESULT_OK) {
-                        result = null;
-                    } else {
-                        // retrieve from the private variable if the intent is null
-                        result = data == null ? mCapturedImageURI : data.getData();
-                    }
-                } catch (Exception e) {
-                    Toast.makeText(getApplicationContext(), "activity :" + e, Toast.LENGTH_LONG).show();
-                }
-                mUploadMessage.onReceiveValue(result);
-                mUploadMessage = null;
-            }
+            ChromeClient.mFilePathCallback.onReceiveValue(results);
+            ChromeClient.mFilePathCallback = null;
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        permissionHelper.onRequestPermissionsResult(requestCode, permissions, grantResults);
+    }
+
+    @Override
+    public boolean onShowFileChooser(ValueCallback<Uri[]> filePath, WebChromeClient.FileChooserParams fileChooserParams) {
+        Timber.d("onShowFileChooser");
+        this.filePath = filePath;
+        this.fileChooserParams = fileChooserParams;
+        if(Permissons.Check_CAMERA(this) && Permissons.Check_STORAGE(this)){
+            return true;
+        }else{
+            permissionHelper.requestPermissions();
+            return false;
         }
     }
 
+
+    @Override
+    public void onPermissionsDenied(int i, @NotNull ArrayList<String> arrayList) {
+        Timber.d("onPermissionsDenied, %d", i);
+    }
+
+    @Override
+    public void onPermissionsGranted(int i, @NotNull ArrayList<String> arrayList) {
+        Timber.d("onPermissionsGranted, %d", i);
+        if(i == Constants.REQUEST_CODE_CAMERA_AND_STORAGE){
+           // chromeClient.onShowFileChooser(webView, filePath, fileChooserParams);
+        }
+    }
 }
