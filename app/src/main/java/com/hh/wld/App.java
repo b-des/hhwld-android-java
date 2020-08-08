@@ -3,6 +3,8 @@ package com.hh.wld;
 import android.app.Application;
 import android.util.Log;
 
+import androidx.annotation.NonNull;
+
 import com.appsflyer.AppsFlyerConversionListener;
 import com.appsflyer.AppsFlyerLib;
 import com.hh.wld.utils.Constants;
@@ -11,13 +13,20 @@ import com.preference.Preference;
 
 import java.util.Map;
 
+import timber.log.Timber;
+
 public class App extends Application {
 
     private String AF_DEV_KEY = "";
 
+
     @Override
     public void onCreate() {
         super.onCreate();
+
+        Timber.plant(new Timber.DebugTree());
+        Timber.tag("TIMBER");
+
         PowerPreference.init(this);
         Preference preference = PowerPreference.getDefaultFile();
 
@@ -62,5 +71,8 @@ public class App extends Application {
         //}
 
 
+
     }
+
+
 }

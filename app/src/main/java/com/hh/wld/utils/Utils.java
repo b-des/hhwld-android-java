@@ -26,4 +26,6 @@ public class Utils {
         }
         return new File(imageStorageDir + File.separator + "IMG_" + System.currentTimeMillis() + ".jpg");
     }
+
+
 }

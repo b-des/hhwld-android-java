@@ -22,13 +22,18 @@ import android.webkit.WebChromeClient;
 import android.webkit.WebResourceRequest;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
-import android.webkit.WebViewClient;
 import android.widget.Toast;
 
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
 
+import com.github.pwittchen.reactivenetwork.library.rx2.ReactiveNetwork;
+import com.hh.wld.utils.ChromeClient;
+import com.hh.wld.utils.Constants;
 import com.hh.wld.utils.Utils;
+import com.hh.wld.utils.WebViewClient;
+
+import com.preference.PowerPreference;
 
 import java.io.File;
 import java.io.IOException;
@@ -39,46 +44,69 @@ import java.util.Locale;
 import butterknife.BindView;
 import butterknife.ButterKnife;
 import im.delight.android.webview.AdvancedWebView;
+import io.reactivex.Observable;
+import io.reactivex.android.schedulers.AndroidSchedulers;
+import io.reactivex.disposables.CompositeDisposable;
+import io.reactivex.disposables.Disposable;
+import io.reactivex.disposables.Disposables;
+import io.reactivex.observers.DisposableObserver;
+import io.reactivex.schedulers.Schedulers;
+import timber.log.Timber;
+
 
 public class WebViewActivity extends AppCompatActivity {
 
-    private static final int INPUT_FILE_REQUEST_CODE = 1;
-    private static final int FILECHOOSER_RESULTCODE = 1;
-    private static final String TAG = "WEBVIEW";
-    @BindView(R.id.webview) WebView webView;
+    private static final String TAG = WebViewActivity.class.getSimpleName();
+    @BindView(R.id.webview)
+    WebView webView;
     private WebSettings webSettings;
     private ValueCallback<Uri> mUploadMessage;
     private Uri mCapturedImageURI = null;
     private ValueCallback<Uri[]> mFilePathCallback;
     private String mCameraPhotoPath;
+    private CompositeDisposable disposable;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
         ButterKnife.bind(this);
-
+        disposable = new CompositeDisposable();
         webSettings = webView.getSettings();
         webSettings.setJavaScriptEnabled(true);
         webSettings.setLoadWithOverviewMode(true);
         webSettings.setAllowFileAccess(true);
 
-        webView.setWebViewClient(new WebViewActivity.Client());
-        webView.setWebChromeClient(new WebViewActivity.ChromeClient());
+        webView.setWebViewClient(new WebViewClient(this));
+        webView.setWebChromeClient(new com.hh.wld.utils.ChromeClient(this));
         if (Build.VERSION.SDK_INT >= 19) {
             webView.setLayerType(View.LAYER_TYPE_HARDWARE, null);
-        }
-        else if(Build.VERSION.SDK_INT >=11 && Build.VERSION.SDK_INT < 19) {
+        } else if (Build.VERSION.SDK_INT >= 11 && Build.VERSION.SDK_INT < 19) {
             webView.setLayerType(View.LAYER_TYPE_SOFTWARE, null);
         }
         webView.loadUrl(getString(R.string.site_domain)); //change with your website
+
+        Timber.d("Appslyer in activity: %s", PowerPreference.getDefaultFile().getString(Constants.APPS_FLYER_ID));
+
+      this.registerNetworkObserver();
+    }
+
+    private void registerNetworkObserver(){
+        Observable observable = ReactiveNetwork
+                .observeNetworkConnectivity(this)
+                .subscribeOn(Schedulers.io())
+                .observeOn(AndroidSchedulers.mainThread());
+
+        disposable.add(observable.subscribe(connectivity -> {
+            Timber.d("NETWORK: %s", connectivity.toString());
+        }));
     }
 
 
     public class ChromeClient extends WebChromeClient {
         // For Android 5.0
         public boolean onShowFileChooser(WebView view, ValueCallback<Uri[]> filePath, WebChromeClient.FileChooserParams fileChooserParams) {
-            Log.d(TAG, "onShowFileChooser");
+            Timber.d("onShowFileChooser");
             // Double check that we don't have any existing callbacks
             if (mFilePathCallback != null) {
                 mFilePathCallback.onReceiveValue(null);
@@ -93,7 +121,7 @@ public class WebViewActivity extends AppCompatActivity {
                     takePictureIntent.putExtra("PhotoPath", mCameraPhotoPath);
                 } catch (IOException ex) {
                     // Error occurred while creating the File
-                    Log.e(TAG, "Unable to create Image File", ex);
+                    Timber.d(ex, "Unable to create Image File");
                 }
                 // Continue only if the File was successfully created
                 if (photoFile != null) {
@@ -117,9 +145,10 @@ public class WebViewActivity extends AppCompatActivity {
             chooserIntent.putExtra(Intent.EXTRA_INTENT, contentSelectionIntent);
             chooserIntent.putExtra(Intent.EXTRA_TITLE, "Image Chooser");
             chooserIntent.putExtra(Intent.EXTRA_INITIAL_INTENTS, intentArray);
-            startActivityForResult(chooserIntent, INPUT_FILE_REQUEST_CODE);
+            startActivityForResult(chooserIntent, Constants.INPUT_FILE_REQUEST_CODE);
             return true;
         }
+
         // openFileChooser for Android 3.0+
         public void openFileChooser(ValueCallback<Uri> uploadMsg, String acceptType) {
             mUploadMessage = uploadMsg;
@@ -150,14 +179,16 @@ public class WebViewActivity extends AppCompatActivity {
             Intent chooserIntent = Intent.createChooser(i, "Image Chooser");
             // Set camera intent to file chooser
             chooserIntent.putExtra(Intent.EXTRA_INITIAL_INTENTS
-                    , new Parcelable[] { captureIntent });
+                    , new Parcelable[]{captureIntent});
             // On select image call onActivityResult method of activity
-            startActivityForResult(chooserIntent, FILECHOOSER_RESULTCODE);
+            startActivityForResult(chooserIntent, Constants.FILECHOOSER_RESULTCODE);
         }
+
         // openFileChooser for Android < 3.0
         public void openFileChooser(ValueCallback<Uri> uploadMsg) {
             openFileChooser(uploadMsg, "");
         }
+
         //openFileChooser for other Android versions
         public void openFileChooser(ValueCallback<Uri> uploadMsg,
                                     String acceptType,
@@ -176,51 +207,17 @@ public class WebViewActivity extends AppCompatActivity {
         // system behavior (probably exit the activity)
         return super.onKeyDown(keyCode, event);
     }
-    public class Client extends WebViewClient {
-        ProgressDialog progressDialog;
-        public boolean shouldOverrideUrlLoading(WebView view, String url) {
-            // If url contains mailto link then open Mail Intent
-            if (url.contains("mailto:")) {
-                // Could be cleverer and use a regex
-                //Open links in new browser
-                view.getContext().startActivity(
-                        new Intent(Intent.ACTION_VIEW, Uri.parse(url)));
-                // Here we can open new activity
-                return true;
-            }else {
-                // Stay within this webview and load url
-                view.loadUrl(url);
-                return true;
-            }
-        }
-        //Show loader on url load
-        public void onPageStarted(WebView view, String url, Bitmap favicon) {
-            // Then show progress  Dialog
-            // in standard case YourActivity.this
-            if (progressDialog == null) {
-                progressDialog = new ProgressDialog(WebViewActivity.this);
-                progressDialog.setMessage("Loading...");
-                progressDialog.show();
-            }
-        }
-        // Called when all page resources loaded
-        public void onPageFinished(WebView view, String url) {
-            try {
-                // Close progressDialog
-                if (progressDialog.isShowing()) {
-                    progressDialog.dismiss();
-                    progressDialog = null;
-                }
-            } catch (Exception exception) {
-                exception.printStackTrace();
-            }
-        }
+
+    @Override
+    protected void onDestroy() {
+        disposable.dispose();
+        super.onDestroy();
     }
 
     @Override
     public void onActivityResult(int requestCode, int resultCode, Intent data) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-            if (requestCode != INPUT_FILE_REQUEST_CODE || mFilePathCallback == null) {
+            if (requestCode != Constants.INPUT_FILE_REQUEST_CODE || mFilePathCallback == null) {
                 super.onActivityResult(requestCode, resultCode, data);
                 return;
             }
@@ -242,11 +239,11 @@ public class WebViewActivity extends AppCompatActivity {
             mFilePathCallback.onReceiveValue(results);
             mFilePathCallback = null;
         } else if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.KITKAT) {
-            if (requestCode != FILECHOOSER_RESULTCODE || mUploadMessage == null) {
+            if (requestCode != Constants.FILECHOOSER_RESULTCODE || mUploadMessage == null) {
                 super.onActivityResult(requestCode, resultCode, data);
                 return;
             }
-            if (requestCode == FILECHOOSER_RESULTCODE) {
+            if (requestCode == Constants.FILECHOOSER_RESULTCODE) {
                 if (null == this.mUploadMessage) {
                     return;
                 }
@@ -266,7 +263,6 @@ public class WebViewActivity extends AppCompatActivity {
                 mUploadMessage = null;
             }
         }
-        return;
     }
 
 }
