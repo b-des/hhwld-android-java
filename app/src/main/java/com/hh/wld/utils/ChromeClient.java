@@ -7,6 +7,10 @@ import android.provider.MediaStore;
 import android.webkit.ValueCallback;
 import android.webkit.WebChromeClient;
 import android.webkit.WebView;
+
+import androidx.core.content.FileProvider;
+
+import com.hh.wld.BuildConfig;
 import com.hh.wld.R;
 import com.hh.wld.interfaces.WebViewCallback;
 import com.preference.PowerPreference;
@@ -23,7 +27,7 @@ public class ChromeClient extends WebChromeClient {
     public static ValueCallback<Uri> mUploadMessage;
     public static Uri mCapturedImageURI = null;
     public static ValueCallback<Uri[]> mFilePathCallback;
-    public static String mCameraPhotoPath;
+    public static File mCameraPhoto;
     private Activity activity;
     WebViewCallback callback;
 
@@ -63,16 +67,17 @@ public class ChromeClient extends WebChromeClient {
             // Create the File where the photo should go
             File photoFile = null;
             try {
-                photoFile = Utils.createImageFile();
-                takePictureIntent.putExtra("PhotoPath", mCameraPhotoPath);
+                photoFile = Utils.createImageFile(activity);
             } catch (IOException ex) {
                 // Error occurred while creating the File
                 Timber.d(ex, "Unable to create Image File");
             }
             // Continue only if the File was successfully created
             if (photoFile != null) {
-                mCameraPhotoPath = "file:" + photoFile.getAbsolutePath();
-                takePictureIntent.putExtra(MediaStore.EXTRA_OUTPUT, Uri.fromFile(photoFile));
+                mCameraPhoto = photoFile;
+                Uri outputFileUri =  FileProvider.getUriForFile(activity, activity.getApplicationContext().getPackageName() + ".provider", photoFile);
+                takePictureIntent.putExtra(MediaStore.EXTRA_OUTPUT, outputFileUri);
+                takePictureIntent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
             } else {
                 takePictureIntent = null;
             }

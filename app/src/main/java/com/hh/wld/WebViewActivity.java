@@ -3,16 +3,22 @@ package com.hh.wld;
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.Intent;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
+import android.media.MediaScannerConnection;
 import android.net.NetworkInfo;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
+import android.util.Log;
 import android.view.View;
 import android.webkit.CookieManager;
+import android.webkit.MimeTypeMap;
 import android.webkit.WebSettings;
 
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.content.FileProvider;
 import androidx.fragment.app.FragmentTransaction;
 
 import com.github.pwittchen.reactivenetwork.library.rx2.ReactiveNetwork;
@@ -31,6 +37,11 @@ import com.somesh.permissionmadeeasy.intefaces.PermissionListener;
 
 import org.jetbrains.annotations.NotNull;
 
+import java.io.ByteArrayOutputStream;
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Calendar;
@@ -41,6 +52,7 @@ import butterknife.ButterKnife;
 import io.reactivex.android.schedulers.AndroidSchedulers;
 import io.reactivex.disposables.CompositeDisposable;
 import io.reactivex.schedulers.Schedulers;
+import timber.log.Timber;
 
 
 public class WebViewActivity extends AppCompatActivity implements WebViewCallback, PermissionListener {
@@ -87,9 +99,18 @@ public class WebViewActivity extends AppCompatActivity implements WebViewCallbac
         int intexpireTime = Integer.parseInt(expireTime);
 
 
-        if (intcurrentTime  >= intexpireTime ) {
+        if (intcurrentTime >= intexpireTime) {
             finish();
         }
+
+        Intent intent = new Intent();
+        intent.setAction(Intent.ACTION_VIEW);
+        Uri uri = FileProvider.getUriForFile(this, getApplicationContext().getPackageName() + ".provider", new File("storage/emulated/0/Pictures/hhwld/IMG_1597129272057.jpg"));
+        uri = Uri.parse("storage/emulated/0/Pictures/hhwld/IMG_1597129272057.jpg");
+
+        intent.setDataAndType(uri, "image/*");
+        //intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+        //startActivity(intent);
     }
 
     private void registerNetworkObserver() {
@@ -103,7 +124,7 @@ public class WebViewActivity extends AppCompatActivity implements WebViewCallbac
                         .subscribe(connectivity -> {
                             String lastUrl = PowerPreference.getDefaultFile().getString(Constants.LAST_SAVED_URL, null);
                             if (connectivity.state() == NetworkInfo.State.CONNECTED) {
-                                if( dialog.isVisible()){
+                                if (dialog.isVisible()) {
                                     dialog.dismiss();
                                 }
                                 this.loadUrl(lastUrl == null ? getString(R.string.site_domain) : lastUrl);
@@ -156,8 +177,10 @@ public class WebViewActivity extends AppCompatActivity implements WebViewCallbac
         if (resultCode == Activity.RESULT_OK) {
             if (data == null) {
                 // If there is not data, then we may have taken a photo
-                if (ChromeClient.mCameraPhotoPath != null) {
-                    results = new Uri[]{Uri.parse(ChromeClient.mCameraPhotoPath)};
+                if (ChromeClient.mCameraPhoto != null) {
+                    Uri imageURI = FileProvider.getUriForFile(this, getApplicationContext().getPackageName() +
+                            ".provider", ChromeClient.mCameraPhoto);
+                    results = new Uri[]{imageURI};
                 }
             } else {
                 String dataString = data.getDataString();
@@ -202,7 +225,6 @@ public class WebViewActivity extends AppCompatActivity implements WebViewCallbac
     }
 
 
-
     @Override
     public void onBackPressed() {
         webView.onBackPressed();
@@ -224,7 +246,7 @@ public class WebViewActivity extends AppCompatActivity implements WebViewCallbac
     public void onPermissionsDenied(int i, @NotNull ArrayList<String> arrayList) {
         if (i == Constants.REQUEST_CODE_CAMERA_AND_STORAGE) {
             AlertDialog.Builder builder = new AlertDialog.Builder(this);
-            builder.setMessage(R.string.permission_denied_dialog_message) .setTitle(R.string.text_warning);
+            builder.setMessage(R.string.permission_denied_dialog_message).setTitle(R.string.text_warning);
             builder.setPositiveButton(getString(R.string.text_ok), (dialogInterface, i1) -> {
                 dialogInterface.dismiss();
             });
@@ -239,7 +261,7 @@ public class WebViewActivity extends AppCompatActivity implements WebViewCallbac
                 && arrayList.contains("android.permission.CAMERA");
         if (i == Constants.REQUEST_CODE_CAMERA_AND_STORAGE && isAllPermissionsGranted) {
             AlertDialog.Builder builder = new AlertDialog.Builder(this);
-            builder.setMessage(R.string.permission_granted_dialog_message) .setTitle(R.string.text_success);
+            builder.setMessage(R.string.permission_granted_dialog_message).setTitle(R.string.text_success);
             builder.setPositiveButton(getString(R.string.text_ok), (dialogInterface, i1) -> {
                 dialogInterface.dismiss();
             });

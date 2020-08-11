@@ -1,5 +1,6 @@
 package com.hh.wld.utils;
 
+import android.content.Context;
 import android.net.Uri;
 import android.os.Environment;
 
@@ -7,6 +8,8 @@ import com.google.common.net.InternetDomainName;
 
 import java.io.File;
 import java.io.IOException;
+import java.text.SimpleDateFormat;
+import java.util.Date;
 
 public class Utils {
     /**
@@ -14,14 +17,15 @@ public class Utils {
      * @return
      * @throws IOException
      */
-    public static File createImageFile() throws IOException {
+    public static File createImageFile(Context context) throws IOException {
         // Create an image file name
-        File imageStorageDir = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES), "hhwld");
+        File imageStorageDir = new File(context.getFilesDir().getAbsolutePath());
         if (!imageStorageDir.exists()) {
             // Create folder at sdcard
             imageStorageDir.mkdirs();
         }
         return new File(imageStorageDir + File.separator + "IMG_" + System.currentTimeMillis() + ".jpg");
+
     }
 
     public static boolean isHostsEqual(String url1, String url2) {
