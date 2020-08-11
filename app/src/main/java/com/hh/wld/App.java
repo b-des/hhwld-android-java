@@ -1,13 +1,15 @@
 package com.hh.wld;
 
 import android.app.Application;
+
 import com.appsflyer.AppsFlyerConversionListener;
 import com.appsflyer.AppsFlyerLib;
 import com.hh.wld.utils.Constants;
-import com.hh.wld.utils.WebViewClient;
 import com.preference.PowerPreference;
 import com.preference.Preference;
+
 import java.util.Map;
+
 import timber.log.Timber;
 
 public class App extends Application {
@@ -19,7 +21,6 @@ public class App extends Application {
         super.onCreate();
 
         Timber.plant(new Timber.DebugTree());
-        Timber.tag("TIMBER");
 
         PowerPreference.init(this);
         Preference preference = PowerPreference.getDefaultFile();

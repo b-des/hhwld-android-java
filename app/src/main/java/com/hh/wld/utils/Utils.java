@@ -7,10 +7,6 @@ import com.google.common.net.InternetDomainName;
 
 import java.io.File;
 import java.io.IOException;
-import java.text.SimpleDateFormat;
-import java.util.Date;
-
-import timber.log.Timber;
 
 public class Utils {
     /**
