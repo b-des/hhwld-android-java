@@ -6,39 +6,44 @@ import android.content.Intent;
 import android.graphics.Bitmap;
 import android.net.Uri;
 import android.webkit.WebView;
-
-import com.hh.wld.WebViewActivity;
 import com.preference.PowerPreference;
 import com.preference.Preference;
 
-import timber.log.Timber;
-
 public class WebViewClient extends android.webkit.WebViewClient {
+
     private Context context;
-    ProgressDialog progressDialog;
-    Preference preference;
+    private ProgressDialog progressDialog;
+    private Preference preference;
+
     public WebViewClient(Context context) {
         this.context = context;
         preference = PowerPreference.getDefaultFile();
     }
 
+    @Override
     public boolean shouldOverrideUrlLoading(WebView view, String url) {
-        Timber.d("shouldOverrideUrlLoading: %s", url);
-        // If url contains mailto link then open Mail Intent
-
-        preference.setString(Constants.LAST_SAVED_URL, url);
-        if (url.contains("mailto:")) {
-            // Could be cleverer and use a regex
-            view.getContext().startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(url)));
-            return true;
-        }else {
-            // Stay within this webview and load url
-            view.loadUrl(url);
-            return true;
+        // If url don't contains query param "did"
+        // and last saved url is empty
+        // then save this url as main domain
+        String savedUrl = preference.getString(Constants.LAST_SAVED_URL, null);
+        if (!url.contains("did=") && savedUrl == null) {
+            preference.setString(Constants.LAST_SAVED_URL, url);
         }
 
+        // if last host is the same as new one
+        // the open this url in app
+        // else open in default browser
+        if(Utils.isHostsEqual(savedUrl, url)){
+            view.loadUrl(url);
+        }else{
+            view.getContext().startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(url)));
+        }
+
+        return true;
     }
+
     //Show loader on url load
+    @Override
     public void onPageStarted(WebView view, String url, Bitmap favicon) {
         // Then show progress  Dialog
         // in standard case YourActivity.this
@@ -48,11 +53,13 @@ public class WebViewClient extends android.webkit.WebViewClient {
             progressDialog.show();
         }
     }
+
     // Called when all page resources loaded
+    @Override
     public void onPageFinished(WebView view, String url) {
         try {
             // Close progressDialog
-            if (progressDialog.isShowing()) {
+            if (progressDialog != null && progressDialog.isShowing()) {
                 progressDialog.dismiss();
                 progressDialog = null;
             }
@@ -61,7 +68,4 @@ public class WebViewClient extends android.webkit.WebViewClient {
         }
     }
 
-    private void check(){
-
-    }
 }

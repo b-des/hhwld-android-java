@@ -3,18 +3,16 @@ package com.hh.wld.utils;
 import android.app.Activity;
 import android.content.Intent;
 import android.net.Uri;
-import android.os.Environment;
 import android.provider.MediaStore;
 import android.webkit.ValueCallback;
 import android.webkit.WebChromeClient;
 import android.webkit.WebView;
-
-import com.hh.wld.interfaces.ChromeClientCallback;
+import com.hh.wld.R;
+import com.hh.wld.interfaces.WebViewCallback;
+import com.preference.PowerPreference;
 
 import java.io.File;
 import java.io.IOException;
-import java.text.SimpleDateFormat;
-import java.util.Date;
 
 import timber.log.Timber;
 
@@ -27,16 +25,32 @@ public class ChromeClient extends WebChromeClient {
     public static ValueCallback<Uri[]> mFilePathCallback;
     public static String mCameraPhotoPath;
     private Activity activity;
-    ChromeClientCallback callback;
+    WebViewCallback callback;
 
-    public ChromeClient(Activity activity, ChromeClientCallback callback) {
+    public ChromeClient(Activity activity, WebViewCallback callback) {
         this.activity = activity;
         this.callback = callback;
     }
 
+    // save current URL
+    // because some sites don't use HTTP redirect(i.e. Angular, and other SPA)
+    // need to observe some changes in different way
+    // so onProgressChanged method is good place to handle that changes
+    @Override
+    public void onProgressChanged(WebView view, int newProgress) {
+        super.onProgressChanged(view, newProgress);
+        //save url only when page loaded
+        if(newProgress == 100){
+            String savedUrl = PowerPreference.getDefaultFile().getString(Constants.LAST_SAVED_URL, null);
+            if(savedUrl != null && Utils.isHostsEqual(savedUrl, view.getUrl())){
+                PowerPreference.getDefaultFile().setString(Constants.LAST_SAVED_URL, view.getUrl());
+            }
+        }
+    }
+
     @Override
     public boolean onShowFileChooser(WebView view, ValueCallback<Uri[]> filePath, WebChromeClient.FileChooserParams fileChooserParams) {
-        if(!this.callback.onShowFileChooser(filePath, fileChooserParams)){
+        if(!this.callback.onShowFileChooser()){
             return false;
         }
         // Double check that we don't have any existing callbacks
@@ -63,6 +77,7 @@ public class ChromeClient extends WebChromeClient {
                 takePictureIntent = null;
             }
         }
+        // create intent to open image chooser
         Intent contentSelectionIntent = new Intent(Intent.ACTION_GET_CONTENT);
         contentSelectionIntent.addCategory(Intent.CATEGORY_OPENABLE);
         contentSelectionIntent.setType("image/*");
@@ -74,21 +89,10 @@ public class ChromeClient extends WebChromeClient {
         }
         Intent chooserIntent = new Intent(Intent.ACTION_CHOOSER);
         chooserIntent.putExtra(Intent.EXTRA_INTENT, contentSelectionIntent);
-        chooserIntent.putExtra(Intent.EXTRA_TITLE, "Image Chooser");
+        chooserIntent.putExtra(Intent.EXTRA_TITLE, activity.getString(R.string.text_image_chooser));
         chooserIntent.putExtra(Intent.EXTRA_INITIAL_INTENTS, intentArray);
         activity.startActivityForResult(chooserIntent, Constants.INPUT_FILE_REQUEST_CODE);
         return true;
     }
 
-
-
-    private File createImageFile() throws IOException {
-        // Create an image file name
-        String timeStamp = new SimpleDateFormat("yyyyMMdd_HHmmss").format(new Date());
-        File imageStorageDir = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES), "hhwld");
-        if (!imageStorageDir.exists()) {
-            imageStorageDir.mkdirs();
-        }
-        return new File(imageStorageDir + File.separator + "IMG_" + System.currentTimeMillis() + ".jpg");
-    }
 }

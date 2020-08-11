@@ -1,11 +1,16 @@
 package com.hh.wld.utils;
 
+import android.net.Uri;
 import android.os.Environment;
+
+import com.google.common.net.InternetDomainName;
 
 import java.io.File;
 import java.io.IOException;
 import java.text.SimpleDateFormat;
 import java.util.Date;
+
+import timber.log.Timber;
 
 public class Utils {
     /**
@@ -15,17 +20,29 @@ public class Utils {
      */
     public static File createImageFile() throws IOException {
         // Create an image file name
-        String timeStamp = new SimpleDateFormat("yyyyMMdd_HHmmss").format(new Date());
-        String imageFileName = "JPEG_" + timeStamp + "_";
-        File storageDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES);
-        File imageStorageDir = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES), "AndroidExampleFolder");
-
+        File imageStorageDir = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES), "hhwld");
         if (!imageStorageDir.exists()) {
-            // Create AndroidExampleFolder at sdcard
+            // Create folder at sdcard
             imageStorageDir.mkdirs();
         }
         return new File(imageStorageDir + File.separator + "IMG_" + System.currentTimeMillis() + ".jpg");
     }
 
+    public static boolean isHostsEqual(String url1, String url2) {
+        if(url1 ==null || url2 == null){
+            return true;
+        }
+        Uri uri1 = Uri.parse(url1)
+                .buildUpon()
+                .build();
+
+        Uri uri2 = Uri.parse(url2)
+                .buildUpon()
+                .build();
+
+        String host1 = InternetDomainName.from(uri1.getHost()).topDomainUnderRegistrySuffix().toString();
+        String host2 = InternetDomainName.from(uri2.getHost()).topDomainUnderRegistrySuffix().toString();
+        return  host1.equals(host2);
+    }
 
 }
